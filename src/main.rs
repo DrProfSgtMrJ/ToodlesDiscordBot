@@ -1,4 +1,6 @@
 mod handlers;
+mod ai;
+
 use dotenv::dotenv;
 
 use handlers::DiscordHandler;
