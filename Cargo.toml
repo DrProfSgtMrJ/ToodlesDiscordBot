@@ -10,3 +10,4 @@ serenity = "0.12.4"
 tokio = { version = "1.21.2", features = ["full"] }
 sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-native-tls"] }
 async-trait = "0.1.88"
+chrono = "0.4.41"
