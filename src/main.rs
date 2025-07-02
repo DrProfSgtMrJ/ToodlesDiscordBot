@@ -1,5 +1,6 @@
 mod handlers;
 mod ai;
+mod models;
 
 use dotenv::dotenv;
 
