@@ -1,6 +1,7 @@
 mod handlers;
 mod ai;
 mod models;
+mod chat_hisotry_store;
 
 use dotenv::dotenv;
 

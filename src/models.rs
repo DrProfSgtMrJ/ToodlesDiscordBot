@@ -2,7 +2,7 @@ use async_openai::types::{ChatCompletionRequestAssistantMessage, ChatCompletionR
 
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
     System,
     User,
@@ -46,7 +46,7 @@ impl Into<Vec<ChatCompletionRequestMessage>> for ChatHistory {
 }
 
 impl ChatHistory {
-    fn add_message(&mut self, role: ChatRole, content: String) {
+    pub fn add_message(&mut self, role: ChatRole, content: String) {
         self.messages.push(ChatMessage { role, content });
     }
 
