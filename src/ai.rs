@@ -1,7 +1,7 @@
 
 use std::error::Error;
 
-use async_openai::{types::{ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage, ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageContent, CreateChatCompletionRequestArgs}, Chat, Client};
+use async_openai::{types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs}, Client};
 
 use crate::models::ChatHistory;
 
