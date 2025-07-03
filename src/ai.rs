@@ -96,7 +96,7 @@ mod tests {
         dotenv::dotenv().ok();
         let mut chat_history = ChatHistory::default();
 
-        chat_history.add_system_message("You are Toodles the clown, a friendly and helpful AI assistant. Respond to user queries with humor and kindness.".to_string());
+        chat_history.set_system_message("You are Toodles the clown, a friendly and helpful AI assistant. Respond to user queries with humor and kindness.".to_string());
         chat_history.add_user_message("Hello, Toodles!".to_string());
 
         let response = ask_toodles(&chat_history).await;

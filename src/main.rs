@@ -34,7 +34,18 @@ async fn main() {
         },
         _ => panic!("Unknown APP_ENV: {}", app_env),
     };
-    let handler = DiscordHandler::new("!toodles".to_string(), chat_history_store);
+
+    let user_interaction_store: Arc<dyn store::UserInteractionStore + Send + Sync> = match app_env.as_str() {
+        "development" => Arc::new(store::InMemoryUserInteractionStore::new()),
+        "production" => {
+            let db_url = std::env::var("DATABASE_URL")
+                .expect("Expected DATABASE_URL in .env file for production");
+            let pool = PgPool::connect(&db_url).await.expect("Failed to connect to database");
+            Arc::new(store::PostgresUserInteractionStore::new(pool))
+        },
+        _ => panic!("Unknown APP_ENV: {}", app_env),
+    };
+    let handler = DiscordHandler::new("!toodles".to_string(), chat_history_store, user_interaction_store);
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES

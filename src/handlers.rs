@@ -7,13 +7,14 @@ use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 
 
-use crate::ai::ask_toodles;
-use crate::store::ChatHistoryStore;
+use crate::ai::{ask_toodles, classify_interaction, construct_system_prompt};
+use crate::store::{ChatHistoryStore, UserInteractionStore};
 
 
 pub struct DiscordHandler {
     pub prefix: String,
-    pub chat_history_store: Arc<dyn ChatHistoryStore + Send + Sync>
+    pub chat_history_store: Arc<dyn ChatHistoryStore + Send + Sync>,
+    pub user_interaction_store: Arc<dyn UserInteractionStore + Send + Sync>,
 }
 
 #[async_trait]
@@ -34,8 +35,8 @@ impl EventHandler for DiscordHandler {
 
 impl DiscordHandler {
 
-    pub fn new(prefix: String, chat_history_store: Arc<dyn ChatHistoryStore + Send + Sync>) -> Self {
-        DiscordHandler { prefix, chat_history_store }
+    pub fn new(prefix: String, chat_history_store: Arc<dyn ChatHistoryStore + Send + Sync>, user_interaction_store: Arc<dyn UserInteractionStore + Send + Sync>) -> Self {
+        DiscordHandler { prefix, chat_history_store, user_interaction_store }
     }
 
     async fn handle_command(&self, ctx: Context, msg: Message) {
@@ -51,25 +52,44 @@ impl DiscordHandler {
             };
 
             let user_id = msg.author.id.to_string();
-            let user_message = msg.content.clone();
+            let user_message = msg.content.strip_prefix(&self.prefix).unwrap_or(&msg.content).to_string();
+            // Classify the interaction
+            let is_positive = classify_interaction(&user_message).await.expect("Failed to classify interaction");
+
+            // Get previous interaction count
             let username = &msg.author.name;
 
             let mut chat_history = self.chat_history_store.get_chat_history(&user_id).await;
+            let mut user_interaction = self.user_interaction_store.get_user_interaction(&user_id).await;
 
-            if chat_history.messages.is_empty() {
-                chat_history.add_system_message("You are Toodles the clown, a friendly and helpful AI assistant. Respond to user queries with humor and kindness.".to_string());
+            // Increment interaction counts based on classification
+            // Also store the updated number
+            if is_positive {
+                println!("User {} ({}) had a positive interaction: {}", username, user_id, user_message);
+                // Increment positive interaction count
+                user_interaction.increment_positive();
+                self.user_interaction_store.increment_positive_interaction(user_id.as_str()).await;
+            } else {
+                println!("User {} ({}) had a negative interaction: {}", username, user_id, user_message);
+                user_interaction.increment_negative();
+                self.user_interaction_store.increment_negative_interaction(user_id.as_str()).await;
             }
+
+            let system_message = construct_system_prompt(&username, user_interaction.num_positive, user_interaction.num_negative, false);
+            chat_history.set_system_message(system_message);
             chat_history.add_user_message(user_message.clone());
+
+            println!("Chat history for user {}: {:?}", user_id, chat_history);
+
             match ask_toodles(&chat_history).await {
                 Ok(reply) => {
                     if let Err(why) = thinking_msg.edit(&ctx.http, EditMessage::new().content(&reply)).await {
                         println!("Error sending response message: {:?}", why);
                     }
+
                     // Add to the chat history store
-                    //self.chat_history_store.add_chat_message(user_id, );
-                    //self.chat_history_store.add_chat_message(user_id, message)
-                    // Add the assistant's reply to the chat history
-                    chat_history.clone().add_assistant_message(reply.clone());
+                    self.chat_history_store.add_user_message(&user_id, user_message.clone()).await;
+                    self.chat_history_store.add_assistant_message(&user_id, reply.clone()).await;
                 },
                 Err(e) => {
                     println!("Error asking Toodles: {:?}", e);

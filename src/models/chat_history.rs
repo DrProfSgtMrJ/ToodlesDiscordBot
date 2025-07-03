@@ -1,3 +1,5 @@
+use std::fmt;
+
 use async_openai::types::{ChatCompletionRequestAssistantMessage, ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage, ChatCompletionRequestUserMessage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,12 +46,13 @@ impl Into<Vec<ChatCompletionRequestMessage>> for ChatHistory {
 }
 
 impl ChatHistory {
-    pub fn add_message(&mut self, role: ChatRole, content: String) {
-        self.messages.push(ChatMessage { role, content });
+
+    pub fn set_system_message(&mut self, content: String) {
+        self.messages.insert(0, ChatMessage { role: ChatRole::System, content: content });
     }
 
-    pub fn add_system_message(&mut self, content: String) {
-        self.add_message(ChatRole::System, content);
+    pub fn add_message(&mut self, role: ChatRole, content: String) {
+        self.messages.push(ChatMessage { role, content });
     }
 
     pub fn add_user_message(&mut self, content: String) {
@@ -66,5 +69,19 @@ impl ChatHistory {
 
     pub fn last_message(&self) -> Option<&ChatMessage> {
         self.messages.last()
+    }
+}
+
+impl fmt::Display for ChatHistory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for message in &self.messages {
+            let role = match message.role {
+                ChatRole::System => "System",
+                ChatRole::User => "User",
+                ChatRole::Assistant => "Assistant",
+            };
+            writeln!(f, "Role: {}: Content: {}", role, message.content)?;
+        }
+        Ok(())
     }
 }

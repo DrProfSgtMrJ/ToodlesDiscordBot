@@ -10,6 +10,20 @@ use crate::models::{ChatHistory, ChatMessage, ChatRole};
 #[async_trait]
 pub trait ChatHistoryStore {
     async fn add_chat_message(&self, user_id: &str, message: ChatMessage);
+
+    async fn add_user_message(&self, user_id: &str, content: String) {
+        self.add_chat_message(user_id, ChatMessage {
+            role: ChatRole::User,
+            content,
+        }).await;
+    }
+
+    async fn add_assistant_message(&self, user_id: &str, content: String) {
+        self.add_chat_message(user_id, ChatMessage {
+            role: ChatRole::Assistant,
+            content,
+        }).await;
+    }
     async fn get_chat_history(&self, user_id: &str) -> ChatHistory;
 }
 
@@ -57,7 +71,7 @@ impl ChatHistoryStore for PostgresChatHistoryStore {
         let role = match message.role {
             ChatRole::User => "user",
             ChatRole::Assistant => "assistant",
-            ChatRole::System => "system",
+            ChatRole::System => "system", // Assuming you might want to store system messages too
         };
 
         sqlx::query(query)
@@ -86,7 +100,7 @@ impl ChatHistoryStore for PostgresChatHistoryStore {
                     "user" => ChatRole::User,
                     "assistant" => ChatRole::Assistant,
                     "system" => ChatRole::System,
-                    _ => ChatRole::System, // Default to System if role is unknown
+                    _ => ChatRole::Assistant, // Default to Assistant if role is unknown
                 };
 
                 let content: String = row.get("content");
