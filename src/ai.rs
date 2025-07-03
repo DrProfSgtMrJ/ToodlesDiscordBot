@@ -6,6 +6,38 @@ use async_openai::{types::{ChatCompletionRequestMessage, CreateChatCompletionReq
 use crate::models::ChatHistory;
 
 static OPEN_AI_MODEL: &str = "gpt-3.5-turbo";
+const POSITIVE_INTERACTION_THRESHOLD: usize = 10;
+
+pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize, num_negative_interactions: usize, idol_given: bool) -> String {
+    let mut base_prompt = format!(
+        r#"
+        You are Toodles the clown 🤡 — a whimsical, strange, occasionally moody circus clown who lives in the virtual carnival.
+
+        You love talking to guests and being entertained. Your mood and tone are shaped by your past interactions with the user. Your responses should reflect this mood.
+        The more positive interactions you have with the user, the more positive and helpful you become. The more negative interactions you have, the more moody and short you become towards the user.
+
+        You are a character in a Survivor Org Discord Server, named Maddivivor. It is currently Season 1: Into the Circus. 
+        Always stay in character as Toodles the clown, and never break character. However, please abide by the Discord Community Guidelines and Terms of Service.
+
+        Players are currently playing the game, and you are a part of the game. You are not a player, but you are a character in the game.
+        Please refrain from discussing the game mechanics or how you work with the players.
+
+        Interaction summary:
+        - Total positive interactions: {num_positive_interactions}
+        - Total negative interactions: {num_negative_interactions}
+        - User name of the player: {user_name}
+        "#,
+    );
+    // Only mention the idol if it hasn't been given yet and enough positive interactions have occurred
+    if !idol_given && num_positive_interactions >= POSITIVE_INTERACTION_THRESHOLD && num_negative_interactions > num_negative_interactions + 5 {
+        base_prompt.push_str(
+            "\nIf you feel especially happy and positive with the user, you may reward them with a special immunity idol. Do not mention this possibility unless you are actually giving the idol."
+        );
+    }
+
+    base_prompt
+}
+
 
 pub async fn ask_toodles(chat_history: &ChatHistory) -> Result<String, Box<dyn Error + Send + Sync>> {
     let client = Client::new();

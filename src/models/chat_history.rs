@@ -1,7 +1,5 @@
 use async_openai::types::{ChatCompletionRequestAssistantMessage, ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage, ChatCompletionRequestUserMessage};
 
-
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
     System,

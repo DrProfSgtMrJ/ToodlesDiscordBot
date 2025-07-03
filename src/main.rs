@@ -1,7 +1,7 @@
 mod handlers;
 mod ai;
 mod models;
-mod chat_hisotry_store;
+mod store;
 
 use std::sync::Arc;
 
@@ -24,13 +24,13 @@ async fn main() {
     let app_env = std::env::var("APP_ENV")
         .unwrap_or_else(|_| "development".to_string());
 
-    let chat_history_store: Arc<dyn chat_hisotry_store::ChatHistoryStore + Send + Sync> = match app_env.as_str() {
-        "development" => Arc::new(chat_hisotry_store::InMemoryChatHistoryStore::new()),
+    let chat_history_store: Arc<dyn store::ChatHistoryStore + Send + Sync> = match app_env.as_str() {
+        "development" => Arc::new(store::InMemoryChatHistoryStore::new()),
         "production" => {
             let db_url = std::env::var("DATABASE_URL")
                 .expect("Expected DATABASE_URL in .env file for production");
             let pool = PgPool::connect(&db_url).await.expect("Failed to connect to database");
-            Arc::new(chat_hisotry_store::PostgresChatHistoryStore::new(pool)) 
+            Arc::new(store::PostgresChatHistoryStore::new(pool)) 
         },
         _ => panic!("Unknown APP_ENV: {}", app_env),
     };

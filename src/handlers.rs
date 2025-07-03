@@ -8,7 +8,7 @@ use serenity::prelude::*;
 
 
 use crate::ai::ask_toodles;
-use crate::chat_hisotry_store::ChatHistoryStore;
+use crate::store::ChatHistoryStore;
 
 
 pub struct DiscordHandler {
@@ -52,7 +52,9 @@ impl DiscordHandler {
 
             let user_id = msg.author.id.to_string();
             let user_message = msg.content.clone();
-            let mut chat_history = self.chat_history_store.get_chat_history(&user_id).await.unwrap_or_default();
+            let username = &msg.author.name;
+
+            let mut chat_history = self.chat_history_store.get_chat_history(&user_id).await;
 
             if chat_history.messages.is_empty() {
                 chat_history.add_system_message("You are Toodles the clown, a friendly and helpful AI assistant. Respond to user queries with humor and kindness.".to_string());
@@ -63,6 +65,9 @@ impl DiscordHandler {
                     if let Err(why) = thinking_msg.edit(&ctx.http, EditMessage::new().content(&reply)).await {
                         println!("Error sending response message: {:?}", why);
                     }
+                    // Add to the chat history store
+                    //self.chat_history_store.add_chat_message(user_id, );
+                    //self.chat_history_store.add_chat_message(user_id, message)
                     // Add the assistant's reply to the chat history
                     chat_history.clone().add_assistant_message(reply.clone());
                 },
