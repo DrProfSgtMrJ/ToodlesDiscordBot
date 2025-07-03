@@ -7,11 +7,11 @@ use crate::models::ChatHistory;
 
 static OPEN_AI_MODEL: &str = "gpt-3.5-turbo";
 
-pub async fn ask_toodles(chat_history: ChatHistory) -> Result<String, Box<dyn Error>> {
+pub async fn ask_toodles(chat_history: &ChatHistory) -> Result<String, Box<dyn Error + Send + Sync>> {
     let client = Client::new();
     let request = CreateChatCompletionRequestArgs::default()
         .model(OPEN_AI_MODEL)
-        .messages::<Vec<ChatCompletionRequestMessage>>(chat_history.into())
+        .messages::<Vec<ChatCompletionRequestMessage>>(chat_history.clone().into())
         .max_tokens(200u16)
         .build()?;
 
@@ -36,7 +36,7 @@ mod tests {
         chat_history.add_system_message("You are Toodles the clown, a friendly and helpful AI assistant. Respond to user queries with humor and kindness.".to_string());
         chat_history.add_user_message("Hello, Toodles!".to_string());
 
-        let response = ask_toodles(chat_history).await;
+        let response = ask_toodles(&chat_history).await;
         assert!(response.is_ok(), "Expected a successful response, got an error: {:?}", response.err());
 
         let reply = response.unwrap();
