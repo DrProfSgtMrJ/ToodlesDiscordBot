@@ -1,11 +1,12 @@
 
 use std::error::Error;
 
-use async_openai::{types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs}, Client};
+use async_openai::{types::{ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage, ChatCompletionRequestUserMessage, CreateChatCompletionRequestArgs}, Client};
 
 use crate::models::ChatHistory;
 
 static OPEN_AI_MODEL: &str = "gpt-3.5-turbo";
+static CLASSIFY_INTERACTION_PROMPT: &str = "Classify the following user message as positive or negative depending on the tone and content. Respond with 'positive' or 'negative' only.";
 const POSITIVE_INTERACTION_THRESHOLD: usize = 10;
 
 pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize, num_negative_interactions: usize, idol_given: bool) -> String {
@@ -38,6 +39,36 @@ pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize
     base_prompt
 }
 
+
+pub async fn classify_interaction(message: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+    let client = Client::new();
+    let request = CreateChatCompletionRequestArgs::default()
+        .model(OPEN_AI_MODEL)
+        .messages(vec![
+            ChatCompletionRequestMessage::System(
+                ChatCompletionRequestSystemMessage {
+                    content: async_openai::types::ChatCompletionRequestSystemMessageContent::Text(CLASSIFY_INTERACTION_PROMPT.to_string()),
+                    ..Default::default()
+                }
+            ),
+            ChatCompletionRequestMessage::User(
+                ChatCompletionRequestUserMessage {
+                    content: async_openai::types::ChatCompletionRequestUserMessageContent::Text(message.to_string()),
+                    ..Default::default()
+                }
+            ),
+        ])
+        .max_tokens(1u16)
+        .build()?;
+
+    let response = client.chat().create(request).await?;
+    let reply = response.choices.get(0)
+        .and_then(|choice| choice.message.content.clone())
+        .unwrap_or_default()
+        .to_lowercase();
+
+    Ok(reply.contains("positive"))
+}
 
 pub async fn ask_toodles(chat_history: &ChatHistory) -> Result<String, Box<dyn Error + Send + Sync>> {
     let client = Client::new();
@@ -74,5 +105,20 @@ mod tests {
         let reply = response.unwrap();
         assert!(!reply.is_empty(), "Expected a non-empty response from Toodles");
         println!("Toodles replied: {}", reply);
+    }
+
+    #[tokio::test]
+    async fn test_classify_interaction() {
+        dotenv::dotenv().ok();
+        let positive_message = "I love Toodles!";
+        let negative_message = "Toodles is terrible!";
+
+        let positive_result = classify_interaction(positive_message).await;
+        assert!(positive_result.is_ok(), "Expected a successful classification, got an error: {:?}", positive_result.err());
+        assert!(positive_result.unwrap(), "Expected the message to be classified as positive");
+
+        let negative_result = classify_interaction(negative_message).await;
+        assert!(negative_result.is_ok(), "Expected a successful classification, got an error: {:?}", negative_result.err());
+        assert!(!negative_result.unwrap(), "Expected the message to be classified as negative");
     }
 }
