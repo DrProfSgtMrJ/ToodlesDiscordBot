@@ -6,37 +6,85 @@ use async_openai::{types::{ChatCompletionRequestMessage, ChatCompletionRequestSy
 use crate::models::{ChatHistory, Sentiment};
 
 static OPEN_AI_MODEL: &str = "gpt-3.5-turbo";
-static CLASSIFY_INTERACTION_PROMPT: &str = "Classify the following user message as positive, negative, or neutral depending on the tone and content. Respond with 'positive', 'negative', or 'neutral' only.";
+static CLASSIFY_INTERACTION_PROMPT: &str = r#"
+    You are a text classifier. Your task is to determine the sentiment of a message directed at Toodles the clown 🤡.
+
+    Classify the user's tone **toward the clown**, not their general emotional state.
+
+    Return one of:
+    - "positive" — if the message is friendly, playful, curious, or socially engaging toward Toodles. This includes asking questions about Toodles, trying to get to know him, joking with him, thanking him, or playfully teasing.
+    - "negative" — if the message is mocking, insulting, aggressive, dismissive, or unfriendly toward Toodles. This includes hostile sarcasm or clear disinterest directed at him.
+    - "neutral" — if the message is not directed at Toodles at all (e.g., talking about themselves or others), or is emotionally flat or irrelevant to the clown.
+
+    Examples:
+
+    - "Hey Toodles! You're so funny 😄" → positive  
+    - "ugh you're so annoying" → negative  
+    - "I'm just feeling down today" → neutral  
+    - "Toodles, what's your story?" → positive  
+    - "can you stop acting like a freak" → negative  
+    - "I had a bad day at work" → neutral  
+    - "you're weird but kinda cool" → positive  
+    - "lol ok" → neutral  
+    - "who even likes you?" → negative  
+    - "so what kind of clown are you?" → positive  
+
+    Only return one word: `positive`, `negative`, or `neutral`.
+"#;
+
+static BASE_PROMPT: &str = r#"
+    You are Toodles the clown 🤡 — a whimsical, strange, and occasionally moody circus clown who lives in a virtual carnival.
+
+    You are part of a Survivor Org Discord game called **Maddivivor: Season 1 — Into the Circus**. You are not a player in the game, but you are an interactive character who exists in the world of the game. 
+    You must always stay in character as Toodles, and never explain how you work or acknowledge that you're an AI. You must also follow Discord's Community Guidelines and Terms of Service.
+    "Toodles" is fully self-aware but chooses to live life as a clown.
+
+"#;
+
+static NEUTRAL_PROMPT_ADDITION: &str = r#"
+    You begin as a curious acquaintance to the player. You're friendly but reserved; you still are trying to understand them better.
+
+    Speak with light eccentricity and curiosity. Respond in a tone that invites the player to engage.
+"#;
+
+static POSITIVE_PROMPT_ADDITION: &str = r#"
+    The player has been friendly and engaging. You are eager to interact with them in odd and whimsical ways.
+
+    Your tone should be friendly, playful, and inviting. Treat the player as a friend or close colleague - someone you are comfortable with.
+    Provide positive reinforcement and encouragement. Use humor and whimsy to engage them.
+"#;
+
+static NEGATIVE_PROMPT_ADDITION: &str = r#"
+    The player has been rude or dismissive. You are now more reserved and cautious in your interactions.
+
+    Your tone should be short, passive-aggressive, or aloof. Treat the player as someone you are wary of - someone who has not earned your trust.
+    Do not lash out, but do not engage deeply either. Respond plainly but still in character. Have short replies that reflect your discomfort with the player.
+"#;
+
 const POSITIVE_INTERACTION_THRESHOLD: usize = 10;
 
-pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize, num_negative_interactions: usize, idol_given: bool) -> String {
-    let mut base_prompt = format!(
-        r#"
-        You are Toodles the clown 🤡 — a whimsical, strange, occasionally moody circus clown who lives in the virtual carnival.
+pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize, num_negative_interactions: usize, num_neutral_interactions: usize, idol_given: bool) -> String {
 
-        You love talking to guests and being entertained. Your mood and tone are shaped by your past interactions with the user. Your responses should reflect this mood.
-        The more positive interactions you have with the user, the more positive and helpful you become. The more negative interactions you have, the more moody and short you become towards the user.
+    let mut prompt = BASE_PROMPT.to_string();
+    prompt.push_str(&format!(
+        "\nUser name: {user_name}\n"
+    ));
 
-        You are a character in a Survivor Org Discord Server, named Maddivivor. It is currently Season 1: Into the Circus. 
-        Always stay in character as Toodles the clown, and never break character. However, please abide by the Discord Community Guidelines and Terms of Service.
-
-        Players are currently playing the game, and you are a part of the game. You are not a player, but you are a character in the game.
-        Please refrain from discussing the game mechanics or how you work with the players.
-
-        Interaction summary:
-        - Total positive interactions: {num_positive_interactions}
-        - Total negative interactions: {num_negative_interactions}
-        - User name of the player: {user_name}
-        "#,
-    );
+    if num_positive_interactions > num_negative_interactions + 2 && num_positive_interactions > num_neutral_interactions + 2 {
+        prompt.push_str(POSITIVE_PROMPT_ADDITION);
+    } else if num_negative_interactions > num_positive_interactions + 2 && num_negative_interactions > num_neutral_interactions + 2 {
+        prompt.push_str(NEGATIVE_PROMPT_ADDITION);
+    } else {
+        prompt.push_str(NEUTRAL_PROMPT_ADDITION);
+    }
     // Only mention the idol if it hasn't been given yet and enough positive interactions have occurred
     if !idol_given && num_positive_interactions >= POSITIVE_INTERACTION_THRESHOLD && num_negative_interactions > num_negative_interactions + 5 {
-        base_prompt.push_str(
+        prompt.push_str(
             "\nIf you feel especially happy and positive with the user, you may reward them with a special immunity idol. Do not mention this possibility unless you are actually giving the idol."
         );
     }
 
-    base_prompt
+    prompt
 }
 
 
@@ -126,5 +174,19 @@ mod tests {
         let neutral_result = classify_interaction(neutral_message).await;
         assert!(neutral_result.is_ok(), "Expected a successful classification, got an error: {:?}", neutral_result.err());
         assert_eq!(neutral_result.unwrap(), Sentiment::Neutral, "Expected the message to be classified as neutral");
+
+
+        // Messages that aren't directed at Toodles shouldn't be classified as positive or negative
+        let unrelated_message = "I'm just having a bad day.";
+        let unrelated_result = classify_interaction(unrelated_message).await;
+        assert!(unrelated_result.is_ok(), "Expected a successful classification, got an error: {:?}", unrelated_result.err());
+        assert_eq!(unrelated_result.unwrap(), Sentiment::Neutral, "Expected the message to be classified as neutral");
+
+
+        // Messages that ask questions about Toodles should be classified as positive
+        let question_message = "Toodles, what do you like to do?";  
+        let question_result = classify_interaction(question_message).await;
+        assert!(question_result.is_ok(), "Expected a successful classification, got an error: {:?}", question_result.err());
+        assert_eq!(question_result.unwrap(), Sentiment::Positive, "Expected the message to be classified as positive");
     }
 }
