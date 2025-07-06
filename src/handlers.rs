@@ -8,6 +8,7 @@ use serenity::prelude::*;
 
 
 use crate::ai::{ask_toodles, classify_interaction, construct_system_prompt};
+use crate::models::Sentiment;
 use crate::store::{ChatHistoryStore, UserInteractionStore};
 
 
@@ -54,7 +55,7 @@ impl DiscordHandler {
             let user_id = msg.author.id.to_string();
             let user_message = msg.content.strip_prefix(&self.prefix).unwrap_or(&msg.content).to_string();
             // Classify the interaction
-            let is_positive = classify_interaction(&user_message).await.expect("Failed to classify interaction");
+            let sentiment = classify_interaction(&user_message).await.expect("Failed to classify interaction");
 
             // Get previous interaction count
             let username = &msg.author.name;
@@ -64,15 +65,19 @@ impl DiscordHandler {
 
             // Increment interaction counts based on classification
             // Also store the updated number
-            if is_positive {
-                println!("User {} ({}) had a positive interaction: {}", username, user_id, user_message);
-                // Increment positive interaction count
-                user_interaction.increment_positive();
-                self.user_interaction_store.increment_positive_interaction(user_id.as_str()).await;
-            } else {
-                println!("User {} ({}) had a negative interaction: {}", username, user_id, user_message);
-                user_interaction.increment_negative();
-                self.user_interaction_store.increment_negative_interaction(user_id.as_str()).await;
+            match sentiment {
+                Sentiment::Positive => {
+                    user_interaction.increment_positive();
+                    self.user_interaction_store.increment_positive_interaction(&user_id).await;
+                },
+                Sentiment::Negative => {
+                    user_interaction.increment_negative();
+                    self.user_interaction_store.increment_negative_interaction(&user_id).await;
+                },
+                Sentiment::Neutral => {
+                    user_interaction.increment_neutral();
+                    self.user_interaction_store.increment_neutral_interaction(&user_id).await;
+                },
             }
 
             let system_message = construct_system_prompt(&username, user_interaction.num_positive, user_interaction.num_negative, false);

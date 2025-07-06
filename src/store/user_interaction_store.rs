@@ -11,6 +11,7 @@ pub trait UserInteractionStore {
     async fn get_user_interaction(&self, user_id: &str) -> UserInteraction;
     async fn increment_positive_interaction(&self, user_id: &str);
     async fn increment_negative_interaction(&self, user_id: &str);
+    async fn increment_neutral_interaction(&self, user_id: &str);
 }
 
 pub struct InMemoryUserInteractionStore {
@@ -43,6 +44,12 @@ impl UserInteractionStore for InMemoryUserInteractionStore {
         let interaction = store.entry(user_id.to_string()).or_insert(UserInteraction::default());
         interaction.num_negative += 1;
     }
+
+    async fn increment_neutral_interaction(&self, user_id: &str) {
+        let mut store = self.store.write().await;
+        let interaction = store.entry(user_id.to_string()).or_insert(UserInteraction::default());
+        interaction.num_neutral += 1;
+    }
 }
 
 pub struct PostgresUserInteractionStore {
@@ -69,6 +76,7 @@ impl UserInteractionStore for PostgresUserInteractionStore {
                     .map(|r| UserInteraction {
                         num_positive: r.get::<i32, _>("num_positive") as usize,
                         num_negative: r.get::<i32, _>("num_negative") as usize,
+                        num_neutral: r.get::<i32, _>("num_neutral") as usize,
                     })
                     .unwrap_or_default();
         user_interaction
@@ -76,8 +84,8 @@ impl UserInteractionStore for PostgresUserInteractionStore {
     
     async fn increment_positive_interaction(&self, user_id: &str) {
         let query = r#"
-            INSERT INTO user_interaction (user_id, num_positive, num_negative)
-            VALUES ($1, 1, 0)
+            INSERT INTO user_interaction (user_id, num_positive)
+            VALUES ($1, 1)
             ON CONFLICT (user_id) 
             DO UPDATE SET 
                 num_positive = user_interaction.num_positive + 1,
@@ -92,8 +100,8 @@ impl UserInteractionStore for PostgresUserInteractionStore {
 
     async fn increment_negative_interaction(&self, user_id: &str) {
         let query = r#"
-            INSERT INTO user_interaction (user_id, num_positive, num_negative)
-            VALUES ($1, 0, 1)
+            INSERT INTO user_interaction (user_id, num_negative)
+            VALUES ($1, 1)
             ON CONFLICT (user_id) 
             DO UPDATE SET
                 num_negative = user_interaction.num_negative + 1,
@@ -105,8 +113,23 @@ impl UserInteractionStore for PostgresUserInteractionStore {
             .await
             .expect("Failed to increment negative interaction");
     }
-}
 
+    async fn increment_neutral_interaction(&self, user_id: &str) {
+        let query = r#"
+            INSERT INTO user_interaction (user_id, num_neutral)
+            VALUES ($1, 1)
+            ON CONFLICT (user_id) 
+            DO UPDATE SET
+                num_neutral = user_interaction.num_neutral + 1,
+                last_interaction = CURRENT_TIMESTAMP
+        "#;
+        sqlx::query(query)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .expect("Failed to increment neutral interaction");
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -119,19 +142,21 @@ mod tests {
 
         // Check that the user_id isn't in the store initially
         let user_interaction = store.get_user_interaction(user_id).await;
-        assert!(user_interaction.num_positive == 0 && user_interaction.num_negative == 0);
+        assert!(user_interaction.num_positive == 0 && user_interaction.num_negative == 0 && user_interaction.num_neutral == 0);
 
         // Increment positive interaction
         store.increment_positive_interaction(user_id).await;
         let user_interaction = store.get_user_interaction(user_id).await;
         assert_eq!(user_interaction.num_positive, 1);
         assert_eq!(user_interaction.num_negative, 0);
+        assert_eq!(user_interaction.num_neutral, 0);
 
         // Increment negative interaction
         store.increment_negative_interaction(user_id).await;
         let user_interaction = store.get_user_interaction(user_id).await;
         assert_eq!(user_interaction.num_positive, 1);
         assert_eq!(user_interaction.num_negative, 1);
+        assert_eq!(user_interaction.num_neutral, 0);
     }
 
     #[tokio::test]

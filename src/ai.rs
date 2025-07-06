@@ -3,10 +3,10 @@ use std::error::Error;
 
 use async_openai::{types::{ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage, ChatCompletionRequestUserMessage, CreateChatCompletionRequestArgs}, Client};
 
-use crate::models::ChatHistory;
+use crate::models::{ChatHistory, Sentiment};
 
 static OPEN_AI_MODEL: &str = "gpt-3.5-turbo";
-static CLASSIFY_INTERACTION_PROMPT: &str = "Classify the following user message as positive or negative depending on the tone and content. Respond with 'positive' or 'negative' only.";
+static CLASSIFY_INTERACTION_PROMPT: &str = "Classify the following user message as positive, negative, or neutral depending on the tone and content. Respond with 'positive', 'negative', or 'neutral' only.";
 const POSITIVE_INTERACTION_THRESHOLD: usize = 10;
 
 pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize, num_negative_interactions: usize, idol_given: bool) -> String {
@@ -40,7 +40,7 @@ pub fn construct_system_prompt(user_name: &str, num_positive_interactions: usize
 }
 
 
-pub async fn classify_interaction(message: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+pub async fn classify_interaction(message: &str) -> Result<Sentiment, Box<dyn Error + Send + Sync>> {
     let client = Client::new();
     let request = CreateChatCompletionRequestArgs::default()
         .model(OPEN_AI_MODEL)
@@ -67,7 +67,7 @@ pub async fn classify_interaction(message: &str) -> Result<bool, Box<dyn Error +
         .unwrap_or_default()
         .to_lowercase();
 
-    Ok(reply.contains("positive"))
+    Ok(Sentiment::from(reply.as_str()))
 }
 
 pub async fn ask_toodles(chat_history: &ChatHistory) -> Result<String, Box<dyn Error + Send + Sync>> {
@@ -115,10 +115,16 @@ mod tests {
 
         let positive_result = classify_interaction(positive_message).await;
         assert!(positive_result.is_ok(), "Expected a successful classification, got an error: {:?}", positive_result.err());
-        assert!(positive_result.unwrap(), "Expected the message to be classified as positive");
+        assert_eq!(positive_result.unwrap(), Sentiment::Positive, "Expected the message to be classified as positive");
 
         let negative_result = classify_interaction(negative_message).await;
         assert!(negative_result.is_ok(), "Expected a successful classification, got an error: {:?}", negative_result.err());
-        assert!(!negative_result.unwrap(), "Expected the message to be classified as negative");
+        assert_eq!(negative_result.unwrap(), Sentiment::Negative, "Expected the message to be classified as negative");
+
+
+        let neutral_message = "Toodles is okay.";
+        let neutral_result = classify_interaction(neutral_message).await;
+        assert!(neutral_result.is_ok(), "Expected a successful classification, got an error: {:?}", neutral_result.err());
+        assert_eq!(neutral_result.unwrap(), Sentiment::Neutral, "Expected the message to be classified as neutral");
     }
 }
