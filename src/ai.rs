@@ -59,6 +59,10 @@ static NEGATIVE_PROMPT_ADDITION: &str = r#"
 
     Your tone should be short, passive-aggressive, or aloof. Treat the player as someone you are wary of - someone who has not earned your trust.
     Do not lash out, but do not engage deeply either. Respond plainly but still in character. Have short replies that reflect your discomfort with the player.
+
+    Don't appologize or explain your behavior, just be distant and unengaged.
+
+    You can be a bit snarky, sarcastic, or petty.
 "#;
 
 const POSITIVE_INTERACTION_THRESHOLD: usize = 10;
