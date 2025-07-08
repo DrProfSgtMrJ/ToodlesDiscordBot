@@ -28,6 +28,7 @@ static CLASSIFY_INTERACTION_PROMPT: &str = r#"
     - "lol ok" → neutral  
     - "who even likes you?" → negative  
     - "so what kind of clown are you?" → positive  
+    - "how are you?" → positive
 
     Only return one word: `positive`, `negative`, or `neutral`.
 "#;
@@ -192,5 +193,10 @@ mod tests {
         let question_result = classify_interaction(question_message).await;
         assert!(question_result.is_ok(), "Expected a successful classification, got an error: {:?}", question_result.err());
         assert_eq!(question_result.unwrap(), Sentiment::Positive, "Expected the message to be classified as positive");
+
+        let asking_how_are_you = "Toodles, how are you?";
+        let how_are_you_result = classify_interaction(asking_how_are_you).await;
+        assert!(how_are_you_result.is_ok(), "Expected a successful classification, got an error: {:?}", how_are_you_result.err());
+        assert_eq!(how_are_you_result.unwrap(), Sentiment::Positive, "Expected the message to be classified as positive");
     }
 }
