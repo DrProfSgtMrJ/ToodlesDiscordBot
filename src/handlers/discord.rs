@@ -33,6 +33,8 @@ impl EventHandler for DiscordHandler {
     async fn guild_member_addition(&self, ctx: Context, new_member: Member) {
         // This function can be used to handle new member additions
         println!("New member added: {}", new_member.user.name);
+        let welcome_channel_id = serenity::model::id::ChannelId::new(733545069549977621u64);
+        let _ = welcome_channel_id.say(&ctx.http, format!("Welcome, {}! 🤡 Toodles the clown is here to make you laugh.", new_member.user.name)).await;
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
